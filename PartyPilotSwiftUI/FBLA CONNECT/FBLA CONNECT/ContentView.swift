@@ -5,6 +5,7 @@ import SwiftUI
 struct ContentView: View {
     /// One shared state object for the whole app lifecycle.
     @StateObject private var store = MemberAppStore()
+    @State private var selectedTab = 0
     @State private var introStarted = false
     @State private var introCompleted = false
     @State private var showIntroOverlay = true
@@ -17,36 +18,42 @@ struct ContentView: View {
             let travelDistance = proxy.size.height + 140
 
             ZStack {
-                TabView {
+                TabView(selection: $selectedTab) {
                     // Home dashboard tab.
-                    HomeTabView()
+                    HomeTabView(selectedTab: $selectedTab)
                         .environmentObject(store)
                         .tabItem { Label("Home", systemImage: "house.fill") }
+                        .tag(0)
 
                     // Member profile tab.
                     ProfileTabView()
                         .environmentObject(store)
                         .tabItem { Label("Profile", systemImage: "person.crop.circle.fill") }
+                        .tag(1)
 
                     // Calendar + reminders tab.
                     CalendarTabView()
                         .environmentObject(store)
                         .tabItem { Label("Calendar", systemImage: "calendar") }
+                        .tag(2)
 
                     // Resource links tab.
                     ResourcesTabView()
                         .environmentObject(store)
                         .tabItem { Label("Resources", systemImage: "folder.fill") }
+                        .tag(3)
 
                     // Personalized news feed tab.
                     NewsTabView()
                         .environmentObject(store)
                         .tabItem { Label("News", systemImage: "newspaper.fill") }
+                        .tag(4)
 
                     // Community + social + team connect tab.
                     CommunityTabView()
                         .environmentObject(store)
                         .tabItem { Label("Community", systemImage: "person.3.fill") }
+                        .tag(5)
                 }
                 .tint(Theme.primary)
                 .offset(y: tabViewOffset)
@@ -67,7 +74,6 @@ struct ContentView: View {
                     .zIndex(1)
                 }
             }
-            .clipped()
             .onAppear {
                 startIntroIfNeeded(travelDistance: travelDistance)
             }
