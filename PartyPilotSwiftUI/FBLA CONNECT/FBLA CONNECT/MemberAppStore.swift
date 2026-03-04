@@ -61,12 +61,48 @@ final class MemberAppStore: ObservableObject {
     ]
 
     let announcements: [AnnouncementItem] = [
-        .init(title: "SLC registration deadline moved to March 14", source: "State FBLA", posted: "2h ago", body: "All chapters must finalize competitor rosters by Friday at 5:00 PM."),
-        .init(title: "New objective test prep packet released", source: "National FBLA", posted: "6h ago", body: "Updated practice questions are available in the resources portal."),
-        .init(title: "Scholarship applications now open", source: "National FBLA", posted: "1d ago", body: "Member scholarship application window closes April 10, 2026."),
-        .init(title: "Community service challenge posted", source: "Chapter Advisors", posted: "2d ago", body: "Top three chapters by service hours receive recognition at SLC."),
-        .init(title: "NLC travel webinar scheduled", source: "Region Leadership", posted: "3d ago", body: "Join the webinar for travel, packing, and presentation logistics."),
-        .init(title: "Monthly chapter newsletter published", source: "Northview HS FBLA", posted: "4d ago", body: "Includes upcoming events, member spotlight, and officer updates.")
+        .init(
+            title: "SLC registration deadline moved to March 14",
+            source: "State FBLA",
+            posted: "2h ago",
+            body: "All chapters must finalize competitor rosters by Friday at 5:00 PM.",
+            url: "https://www.fbla.org/conferences/"
+        ),
+        .init(
+            title: "New objective test prep packet released",
+            source: "National FBLA",
+            posted: "6h ago",
+            body: "Updated practice questions are available in the resources portal.",
+            url: "https://www.fbla.org/competitive-events/"
+        ),
+        .init(
+            title: "Scholarship applications now open",
+            source: "National FBLA",
+            posted: "1d ago",
+            body: "Member scholarship application window closes April 10, 2026.",
+            url: "https://www.fbla.org/scholarships/"
+        ),
+        .init(
+            title: "Community service challenge posted",
+            source: "Chapter Advisors",
+            posted: "2d ago",
+            body: "Top three chapters by service hours receive recognition at SLC.",
+            url: "https://www.fbla.org/programs/"
+        ),
+        .init(
+            title: "NLC travel webinar scheduled",
+            source: "Region Leadership",
+            posted: "3d ago",
+            body: "Join the webinar for travel, packing, and presentation logistics.",
+            url: "https://www.fbla.org/conferences/nlc/"
+        ),
+        .init(
+            title: "Monthly chapter newsletter published",
+            source: "Northview HS FBLA",
+            posted: "4d ago",
+            body: "Includes upcoming events, member spotlight, and officer updates.",
+            url: "https://www.fbla.org/news/"
+        )
     ]
 
     let socialChannels: [SocialChannel] = [
@@ -185,8 +221,20 @@ final class MemberAppStore: ObservableObject {
     var personalizedAnnouncements: [AnnouncementItem] {
         let state = detectedState
         let stateFeed: [AnnouncementItem] = [
-            .init(title: "\(state) FBLA state competition schedule update", source: "\(state) FBLA", posted: "Today", body: "Check reporting times, event room locations, and final deadlines for the \(state) conference."),
-            .init(title: "\(state) chapter advisor bulletin", source: "\(state) FBLA", posted: "Today", body: "Updated guidance posted for competitive event submissions, dress code reminders, and presentation check-in steps.")
+            .init(
+                title: "\(state) FBLA state competition schedule update",
+                source: "\(state) FBLA",
+                posted: "Today",
+                body: "Check reporting times, event room locations, and final deadlines for the \(state) conference.",
+                url: "https://www.fbla.org/conferences/"
+            ),
+            .init(
+                title: "\(state) chapter advisor bulletin",
+                source: "\(state) FBLA",
+                posted: "Today",
+                body: "Updated guidance posted for competitive event submissions, dress code reminders, and presentation check-in steps.",
+                url: "https://www.fbla.org/adviser-resource-center/"
+            )
         ]
 
         return stateFeed + announcements

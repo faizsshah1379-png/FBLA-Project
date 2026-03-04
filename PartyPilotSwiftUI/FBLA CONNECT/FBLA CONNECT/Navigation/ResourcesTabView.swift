@@ -20,16 +20,11 @@ struct ResourcesTabView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 0) {
-                Divider()
-                    .overlay(Theme.stroke)
-
-                searchField
-                    .padding(.horizontal, 16)
-                    .padding(.top, 10)
-                    .padding(.bottom, 6)
-            }
-            .background(Theme.page.opacity(0.98))
+            searchField
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
+                .background(Color.clear)
         }
     }
 
@@ -39,12 +34,13 @@ struct ResourcesTabView: View {
             .foregroundStyle(Theme.text)
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(Theme.field)
+            .background(Theme.surface)
             .clipShape(Capsule())
             .overlay(
                 Capsule()
                     .stroke(Theme.stroke, lineWidth: 1)
             )
+            .shadow(color: Color.black.opacity(0.12), radius: 10, x: 0, y: 4)
     }
 
     private func resourceCard(for item: ResourceItem) -> some View {

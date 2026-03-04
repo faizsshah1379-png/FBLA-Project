@@ -48,12 +48,6 @@ struct ContentView: View {
                         .environmentObject(store)
                         .tabItem { Label("News", systemImage: "newspaper.fill") }
                         .tag(4)
-
-                    // Community + social + team connect tab.
-                    CommunityTabView()
-                        .environmentObject(store)
-                        .tabItem { Label("Community", systemImage: "person.3.fill") }
-                        .tag(5)
                 }
                 .tint(Theme.primary)
                 .offset(y: tabViewOffset)
@@ -74,7 +68,7 @@ struct ContentView: View {
                             Image("FBLALogo")
                                 .resizable()
                                 .scaledToFit()
-                                .frame(width: 140, height: 140)
+                                .frame(width: 152, height: 152)
                                 .accessibilityHidden(true)
                         }
                     }

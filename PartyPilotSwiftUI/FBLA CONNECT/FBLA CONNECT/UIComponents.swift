@@ -18,7 +18,7 @@ struct AppPage<Content: View>: View {
                     Image("FBLALogo")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 54, height: 54)
+                        .frame(width: 62, height: 62)
                         .accessibilityHidden(true)
                     Spacer()
                 }

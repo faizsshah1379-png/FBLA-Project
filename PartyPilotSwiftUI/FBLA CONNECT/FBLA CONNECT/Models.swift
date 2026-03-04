@@ -112,6 +112,7 @@ struct AnnouncementItem: Identifiable {
     let source: String
     let posted: String
     let body: String
+    let url: String
 }
 
 /// Social media channel used in Community tab.

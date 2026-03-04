@@ -53,9 +53,9 @@ struct HomeTabView: View {
                 icon: "newspaper.fill"
             )
             tabCard(
-                title: "Social Integration",
-                subtitle: "Jump directly to chapter channels on Instagram, X, YouTube, and LinkedIn.",
-                destination: 5,
+                title: "Community & Social",
+                subtitle: "Manage teammate connections and open chapter social channels from your profile tab.",
+                destination: 1,
                 icon: "person.3.fill"
             )
         }
