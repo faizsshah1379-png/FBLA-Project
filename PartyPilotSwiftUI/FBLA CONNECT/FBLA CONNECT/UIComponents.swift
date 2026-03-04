@@ -5,24 +5,47 @@ import SwiftUI
 struct AppPage<Content: View>: View {
     let title: String
     let subtitle: String
+    var greeting: String? = nil
+    var greetingTopPadding: CGFloat = 4
+    var showHeader: Bool = true
     @ViewBuilder let content: Content
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                // Header section.
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(title)
-                        .font(.system(size: 29, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.white)
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.white.opacity(0.92))
+                HStack {
+                    Spacer()
+                    Image("FBLALogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 54, height: 54)
+                        .accessibilityHidden(true)
+                    Spacer()
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(18)
-                .background(LinearGradient(colors: [Theme.navy, Theme.primary, Theme.sky], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .padding(.top, 4)
+
+                if let greeting {
+                    Text(greeting)
+                        .font(.system(size: 33, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Theme.text)
+                        .padding(.top, greetingTopPadding)
+                }
+
+                if showHeader {
+                    // Header section.
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(title)
+                            .font(.system(size: 29, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.white)
+                        Text(subtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.white.opacity(0.92))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(18)
+                    .background(LinearGradient(colors: [Theme.navy, Theme.primary, Theme.sky], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                }
 
                 // Caller-provided content.
                 content
@@ -56,9 +79,9 @@ struct StandardCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(13)
-        .background(.white)
+        .background(Theme.surface)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(.blue.opacity(0.09), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Theme.stroke, lineWidth: 1))
     }
 }
 
@@ -79,8 +102,12 @@ struct MetricRow: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
-                .background(.white)
+                .background(Theme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Theme.stroke, lineWidth: 1)
+                )
             }
         }
     }
@@ -95,11 +122,19 @@ struct LabeledInput: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(label)
-                .font(.caption)
-                .fontWeight(.semibold)
+                .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(Theme.muted)
             TextField(placeholder, text: $text)
-                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .foregroundStyle(Theme.text)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Theme.field)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(Theme.stroke, lineWidth: 1)
+                )
         }
     }
 }
@@ -113,5 +148,6 @@ struct SectionTitle: View {
         Text(text)
             .font(.title3)
             .fontWeight(.bold)
+            .foregroundStyle(Theme.text)
     }
 }

@@ -13,7 +13,8 @@ final class MemberAppStore: ObservableObject {
 
     /// Default sample profile requested by user.
     @Published var profile = MemberProfile(
-        name: "Jordan Lee",
+        firstName: "Jordan",
+        lastName: "Lee",
         chapter: "Franklin High School",
         role: "Chapter VP",
         gradYear: "2027",
@@ -213,7 +214,7 @@ final class MemberAppStore: ObservableObject {
     var memberShareText: String {
         """
         FBLA Member Connection Card
-        Name: \(profile.name)
+        Name: \(profile.fullName)
         Chapter: \(profile.chapter)
         Role: \(profile.role)
         Graduation Year: \(profile.gradYear)

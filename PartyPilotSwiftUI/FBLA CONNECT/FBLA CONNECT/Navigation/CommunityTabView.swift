@@ -52,28 +52,64 @@ struct CommunityTabView: View {
             ForEach(store.socialChannels) { channel in
                 VStack(alignment: .leading, spacing: 8) {
                     StandardCard(title: channel.platform, subtitle: channel.handle)
-                    HStack {
-                        Button("Open in App") {
-                            if let appURL = URL(string: channel.appURL) {
-                                // If deep-link fails (app not installed), fallback to web.
-                                openURL(appURL) { accepted in
-                                    if !accepted, let webURL = URL(string: channel.webURL) {
-                                        openURL(webURL)
-                                    }
-                                }
-                            }
+                    HStack(spacing: 12) {
+                        socialActionButton(symbol: appSymbol(for: channel), accessibilityLabel: "Open \(channel.platform) app") {
+                            openApp(for: channel)
                         }
-                        .buttonStyle(.borderedProminent)
 
-                        Button("Open on Web") {
-                            if let webURL = URL(string: channel.webURL) {
-                                openURL(webURL)
-                            }
+                        socialActionButton(symbol: "desktopcomputer", accessibilityLabel: "Open \(channel.platform) on web") {
+                            openWeb(for: channel)
                         }
-                        .buttonStyle(.bordered)
                     }
                 }
             }
         }
+    }
+
+    private func socialActionButton(symbol: String, accessibilityLabel: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Theme.primary)
+                .frame(width: 44, height: 44)
+                .background(Theme.surface)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(Theme.stroke, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private func appSymbol(for channel: SocialChannel) -> String {
+        switch channel.platform.lowercased() {
+        case "instagram":
+            return "camera.circle.fill"
+        case "youtube":
+            return "play.rectangle.fill"
+        case "linkedin":
+            return "link.circle.fill"
+        case "x":
+            return "at.circle.fill"
+        default:
+            return "app.fill"
+        }
+    }
+
+    private func openApp(for channel: SocialChannel) {
+        guard let appURL = URL(string: channel.appURL) else { return }
+        // If deep-link fails (app not installed), fallback to web.
+        openURL(appURL) { accepted in
+            if !accepted {
+                openWeb(for: channel)
+            }
+        }
+    }
+
+    private func openWeb(for channel: SocialChannel) {
+        guard let webURL = URL(string: channel.webURL) else { return }
+        openURL(webURL)
     }
 }

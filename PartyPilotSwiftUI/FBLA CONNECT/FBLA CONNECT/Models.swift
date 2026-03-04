@@ -2,11 +2,68 @@ import Foundation
 
 /// User/member identity data shown in Profile and used by personalization.
 struct MemberProfile: Codable {
-    var name: String
+    var firstName: String
+    var lastName: String
     var chapter: String
     var role: String
     var gradYear: String
     var interests: String
+
+    var fullName: String {
+        let combined = "\(firstName) \(lastName)".trimmingCharacters(in: .whitespacesAndNewlines)
+        return combined.isEmpty ? "Member" : combined
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case firstName
+        case lastName
+        case name
+        case chapter
+        case role
+        case gradYear
+        case interests
+    }
+
+    init(firstName: String, lastName: String, chapter: String, role: String, gradYear: String, interests: String) {
+        self.firstName = firstName
+        self.lastName = lastName
+        self.chapter = chapter
+        self.role = role
+        self.gradYear = gradYear
+        self.interests = interests
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        let decodedFirstName = try container.decodeIfPresent(String.self, forKey: .firstName)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let decodedLastName = try container.decodeIfPresent(String.self, forKey: .lastName)?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let firstName = decodedFirstName, !firstName.isEmpty {
+            self.firstName = firstName
+            self.lastName = decodedLastName ?? ""
+        } else {
+            let legacyName = try container.decodeIfPresent(String.self, forKey: .name)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let parts = legacyName.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true).map(String.init)
+            self.firstName = parts.first ?? ""
+            self.lastName = parts.count > 1 ? parts[1] : ""
+        }
+
+        self.chapter = try container.decode(String.self, forKey: .chapter)
+        self.role = try container.decode(String.self, forKey: .role)
+        self.gradYear = try container.decode(String.self, forKey: .gradYear)
+        self.interests = try container.decode(String.self, forKey: .interests)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(firstName, forKey: .firstName)
+        try container.encode(lastName, forKey: .lastName)
+        try container.encode(chapter, forKey: .chapter)
+        try container.encode(role, forKey: .role)
+        try container.encode(gradYear, forKey: .gradYear)
+        try container.encode(interests, forKey: .interests)
+    }
 }
 
 /// Single chapter/state event item used by the calendar.

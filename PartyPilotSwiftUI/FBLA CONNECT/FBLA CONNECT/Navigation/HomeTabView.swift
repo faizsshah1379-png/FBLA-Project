@@ -6,7 +6,12 @@ struct HomeTabView: View {
     @Binding var selectedTab: Int
 
     var body: some View {
-        AppPage(title: "FBLA Connect", subtitle: "Official student member companion app for staying informed, connected, and engaged.") {
+        AppPage(
+            title: "FBLA Connect",
+            subtitle: "Official student member companion app for staying informed, connected, and engaged.",
+            greeting: "Hi \(store.profile.firstName),",
+            greetingTopPadding: 10
+        ) {
             // Quick at-a-glance stats.
             VStack(spacing: 12) {
                 HStack(spacing: 12) {
@@ -68,11 +73,11 @@ struct HomeTabView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 116, alignment: .leading)
         .padding(16)
-        .background(.white)
+        .background(Theme.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(.blue.opacity(0.11), lineWidth: 1)
+                .stroke(Theme.stroke, lineWidth: 1)
         )
     }
 
@@ -101,11 +106,11 @@ struct HomeTabView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(15)
-            .background(.white)
+            .background(Theme.surface)
             .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    .stroke(.blue.opacity(0.09), lineWidth: 1)
+                    .stroke(Theme.stroke, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

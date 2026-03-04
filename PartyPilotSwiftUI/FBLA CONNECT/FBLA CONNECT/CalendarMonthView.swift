@@ -97,7 +97,7 @@ struct CalendarMonthView: View {
                                     // Blue circle for event dates.
                                     Circle().fill(hasEvent ? Color.blue.opacity(isSelected ? 0.95 : 0.65) : Color.clear)
                                 )
-                                .foregroundStyle(hasEvent ? .white : .primary)
+                                .foregroundStyle(hasEvent ? .white : Theme.text)
                         }
                         .buttonStyle(.plain)
                     } else {
@@ -109,8 +109,12 @@ struct CalendarMonthView: View {
             //fdsajkfnhjkasfhjksahdfkahdfak
         }
         .padding(12)
-        .background(.white)
+        .background(Theme.surface)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Theme.stroke, lineWidth: 1)
+        )
     }
 }
 //testing for github desktop change

@@ -61,14 +61,22 @@ struct ContentView: View {
 
                 if showIntroOverlay {
                     ZStack {
-                        Color.white
+                        Theme.page
                             .ignoresSafeArea()
 
-                        Text("Welcome to FBLA Connect")
-                            .font(.system(size: 34, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Theme.navy)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 24)
+                        VStack(spacing: 16) {
+                            Text("Welcome to FBLA Connect")
+                                .font(.system(size: 34, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Theme.text)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 24)
+
+                            Image("FBLALogo")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 140, height: 140)
+                                .accessibilityHidden(true)
+                        }
                     }
                     .offset(y: introOffset)
                     .zIndex(1)
