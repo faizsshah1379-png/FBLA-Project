@@ -59,6 +59,8 @@
 			buildRules = (
 			);
 			dependencies = (
+				84A3783C2F590C6700F4C8D2 /* PBXTargetDependency */,
+				84A3783E2F590C6700F4C8D2 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				BE4D8B492F578B9F00C2B703 /* FBLA CONNECT */,
@@ -126,6 +128,17 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		84A3783C2F590C6700F4C8D2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 84A3783B2F590C6700F4C8D2 /* FirebaseAuth */;
+		};
+		84A3783E2F590C6700F4C8D2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 84A3783D2F590C6700F4C8D2 /* FirebaseCore */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		BE4D8B502F578BA000C2B703 /* Debug */ = {
@@ -350,12 +363,12 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		8452257F2F5903C500309FB2 /* FirebaseAuth */ = {
+		84A3783B2F590C6700F4C8D2 /* FirebaseAuth */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 8452257E2F5902C900309FB2 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseAuth;
 		};
-		845225812F5903C500309FB2 /* FirebaseCore */ = {
+		84A3783D2F590C6700F4C8D2 /* FirebaseCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 8452257E2F5902C900309FB2 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCore;
