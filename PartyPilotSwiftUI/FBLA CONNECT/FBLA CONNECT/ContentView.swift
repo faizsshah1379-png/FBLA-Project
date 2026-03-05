@@ -1,4 +1,207 @@
 import SwiftUI
+#if canImport(FirebaseAuth)
+import FirebaseAuth
+#endif
+
+@MainActor
+final class AuthViewModel: ObservableObject {
+    @Published var isAuthenticated = false
+    @Published var isBusy = false
+    @Published var authError: String?
+
+    init() {
+        #if canImport(FirebaseAuth)
+        isAuthenticated = Auth.auth().currentUser != nil
+        #endif
+    }
+
+    func signIn(email: String, password: String) async {
+        authError = nil
+        isBusy = true
+        defer { isBusy = false }
+
+        let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !cleanEmail.isEmpty, !cleanPassword.isEmpty else {
+            authError = "Enter your email and password."
+            return
+        }
+
+        #if canImport(FirebaseAuth)
+        do {
+            _ = try await Auth.auth().signIn(withEmail: cleanEmail, password: cleanPassword)
+            isAuthenticated = true
+        } catch {
+            authError = error.localizedDescription
+        }
+        #else
+        isAuthenticated = true
+        #endif
+    }
+
+    func createAccount(email: String, password: String) async {
+        authError = nil
+        isBusy = true
+        defer { isBusy = false }
+
+        let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !cleanEmail.isEmpty, !cleanPassword.isEmpty else {
+            authError = "Enter email and password to create an account."
+            return
+        }
+
+        #if canImport(FirebaseAuth)
+        do {
+            _ = try await Auth.auth().createUser(withEmail: cleanEmail, password: cleanPassword)
+            isAuthenticated = true
+        } catch {
+            authError = error.localizedDescription
+        }
+        #else
+        isAuthenticated = true
+        #endif
+    }
+
+    func resetPassword(email: String) async {
+        authError = nil
+        isBusy = true
+        defer { isBusy = false }
+
+        let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanEmail.isEmpty else {
+            authError = "Enter your email to reset password."
+            return
+        }
+
+        #if canImport(FirebaseAuth)
+        do {
+            try await Auth.auth().sendPasswordReset(withEmail: cleanEmail)
+            authError = "Password reset email sent."
+        } catch {
+            authError = error.localizedDescription
+        }
+        #else
+        authError = "Add Firebase Auth to enable password reset."
+        #endif
+    }
+}
+
+struct RootGateView: View {
+    @StateObject private var auth = AuthViewModel()
+
+    var body: some View {
+        Group {
+            if auth.isAuthenticated {
+                ContentView()
+            } else {
+                LoginView(auth: auth)
+            }
+        }
+    }
+}
+
+struct LoginView: View {
+    @ObservedObject var auth: AuthViewModel
+
+    @State private var email = ""
+    @State private var password = ""
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                Spacer().frame(height: 80)
+
+                Image("FBLALogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 72, height: 72)
+                    .padding(.bottom, 52)
+
+                Text("Sign In")
+                    .font(.system(size: 52, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Text("Sign in to your account")
+                    .font(.system(size: 19, weight: .regular, design: .rounded))
+                    .foregroundStyle(Color.white.opacity(0.6))
+                    .padding(.top, 4)
+                    .padding(.bottom, 42)
+
+                VStack(spacing: 18) {
+                    TextField("Email Address", text: $email)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                        .keyboardType(.emailAddress)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 18)
+                        .frame(height: 64)
+                        .background(Color(red: 0.09, green: 0.1, blue: 0.14))
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                    SecureField("Password", text: $password)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 18)
+                        .frame(height: 64)
+                        .background(Color(red: 0.09, green: 0.1, blue: 0.14))
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+
+                Button {
+                    Task { await auth.signIn(email: email, password: password) }
+                } label: {
+                    Text(auth.isBusy ? "Signing In..." : "Sign In")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 64)
+                        .background(Color(red: 0.08, green: 0.52, blue: 0.96))
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+                .disabled(auth.isBusy)
+                .padding(.top, 26)
+
+                Button {
+                    Task { await auth.createAccount(email: email, password: password) }
+                } label: {
+                    Text("New User? Create Account.")
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                }
+                .foregroundStyle(Color(red: 0.08, green: 0.52, blue: 0.96))
+                .padding(.top, 32)
+                .disabled(auth.isBusy)
+
+                Button {
+                    Task { await auth.resetPassword(email: email) }
+                } label: {
+                    Text("Forgot Password?")
+                        .font(.system(size: 17, weight: .regular, design: .rounded))
+                }
+                .foregroundStyle(Color(red: 0.08, green: 0.52, blue: 0.96))
+                .padding(.top, 28)
+                .disabled(auth.isBusy)
+
+                if let authError = auth.authError {
+                    Text(authError)
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.75))
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 20)
+                        .padding(.horizontal, 10)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+        }
+    }
+}
 
 /// Root view that owns shared app state (`MemberAppStore`) and injects it
 /// into each tab via `environmentObject`.
@@ -118,5 +321,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
+    RootGateView()
 }
