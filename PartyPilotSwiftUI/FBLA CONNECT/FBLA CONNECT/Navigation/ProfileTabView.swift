@@ -4,8 +4,9 @@ import SwiftUI
 /// Profile values are used for personalization (news/events).
 struct ProfileTabView: View {
     @EnvironmentObject var store: MemberAppStore
+    @EnvironmentObject var auth: AuthViewModel
     @Environment(\.openURL) private var openURL
-    @State private var mode: ProfileMode = .editing
+    @State private var mode: ProfileMode = .summary
     @State private var checkmarkScale: CGFloat = 0.35
     @State private var checkmarkOpacity = 0.0
     @State private var checkmarkRotation = -18.0
@@ -14,6 +15,7 @@ struct ProfileTabView: View {
     @State private var connectionCheckmarkScale: CGFloat = 0.35
     @State private var connectionCheckmarkOpacity = 0.0
     @State private var connectionCheckmarkRotation = -18.0
+    @State private var hasInitializedSavedProfile = false
 
     private enum ProfileMode {
         case editing
@@ -41,6 +43,26 @@ struct ProfileTabView: View {
                     .padding(.top, 6)
                 communityContent
             }
+        }
+        .onAppear {
+            guard !hasInitializedSavedProfile else { return }
+            hasInitializedSavedProfile = true
+            store.saveProfile()
+            mode = .summary
+        }
+        .overlay(alignment: .topTrailing) {
+            Button("Sign Out") {
+                auth.signOut()
+            }
+            .font(.system(size: 14, weight: .bold, design: .rounded))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(Theme.primary)
+            .clipShape(Capsule())
+            .padding(.top, 22)
+            .padding(.trailing, 16)
+            .accessibilityLabel("Sign out")
         }
     }
 

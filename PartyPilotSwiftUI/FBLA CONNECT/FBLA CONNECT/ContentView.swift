@@ -1,19 +1,10 @@
 import SwiftUI
-#if canImport(FirebaseAuth)
-import FirebaseAuth
-#endif
 
 @MainActor
 final class AuthViewModel: ObservableObject {
     @Published var isAuthenticated = false
     @Published var isBusy = false
     @Published var authError: String?
-
-    init() {
-        #if canImport(FirebaseAuth)
-        isAuthenticated = Auth.auth().currentUser != nil
-        #endif
-    }
 
     func signIn(email: String, password: String) async {
         authError = nil
@@ -28,16 +19,7 @@ final class AuthViewModel: ObservableObject {
             return
         }
 
-        #if canImport(FirebaseAuth)
-        do {
-            _ = try await Auth.auth().signIn(withEmail: cleanEmail, password: cleanPassword)
-            isAuthenticated = true
-        } catch {
-            authError = error.localizedDescription
-        }
-        #else
         isAuthenticated = true
-        #endif
     }
 
     func createAccount(email: String, password: String) async {
@@ -53,16 +35,7 @@ final class AuthViewModel: ObservableObject {
             return
         }
 
-        #if canImport(FirebaseAuth)
-        do {
-            _ = try await Auth.auth().createUser(withEmail: cleanEmail, password: cleanPassword)
-            isAuthenticated = true
-        } catch {
-            authError = error.localizedDescription
-        }
-        #else
         isAuthenticated = true
-        #endif
     }
 
     func resetPassword(email: String) async {
@@ -76,16 +49,50 @@ final class AuthViewModel: ObservableObject {
             return
         }
 
-        #if canImport(FirebaseAuth)
         do {
-            try await Auth.auth().sendPasswordReset(withEmail: cleanEmail)
+            try await sendPasswordResetViaREST(email: cleanEmail)
             authError = "Password reset email sent."
         } catch {
             authError = error.localizedDescription
         }
-        #else
-        authError = "Add Firebase Auth to enable password reset."
-        #endif
+    }
+
+    func signOut() {
+        authError = nil
+
+        isAuthenticated = false
+    }
+
+    private func sendPasswordResetViaREST(email: String) async throws {
+        guard let apiKey = firebaseWebAPIKey(), !apiKey.isEmpty else {
+            throw NSError(domain: "Auth", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing Firebase API key. Add GoogleService-Info.plist to the app target."])
+        }
+
+        guard let url = URL(string: "https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=\(apiKey)") else {
+            throw NSError(domain: "Auth", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid Firebase endpoint URL."])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "requestType": "PASSWORD_RESET",
+            "email": email
+        ])
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "Auth", code: 3, userInfo: [NSLocalizedDescriptionKey: "Could not send reset email. Check that Email/Password is enabled in Firebase Auth."])
+        }
+    }
+
+    private func firebaseWebAPIKey() -> String? {
+        guard let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+              let plist = NSDictionary(contentsOfFile: path) as? [String: Any],
+              let apiKey = plist["API_KEY"] as? String else {
+            return nil
+        }
+        return apiKey
     }
 }
 
@@ -96,6 +103,7 @@ struct RootGateView: View {
         Group {
             if auth.isAuthenticated {
                 ContentView()
+                    .environmentObject(auth)
             } else {
                 LoginView(auth: auth)
             }
