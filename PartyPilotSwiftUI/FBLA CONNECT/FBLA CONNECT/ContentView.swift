@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 @MainActor
 final class AuthViewModel: ObservableObject {
@@ -211,15 +212,16 @@ private struct AuthSession: Codable {
 
 struct RootGateView: View {
     @StateObject private var auth = AuthViewModel()
+    @StateObject private var store = MemberAppStore()
 
     var body: some View {
         ZStack {
             if auth.isAuthenticated {
-                ContentView()
+                ContentView(store: store)
                     .environmentObject(auth)
                     .transition(.opacity)
             } else {
-                LoginView(auth: auth)
+                LoginView(auth: auth, store: store)
                     .transition(.opacity)
             }
         }
@@ -229,9 +231,17 @@ struct RootGateView: View {
 
 struct LoginView: View {
     @ObservedObject var auth: AuthViewModel
+    @ObservedObject var store: MemberAppStore
 
     @State private var email = ""
     @State private var password = ""
+    @State private var showCreateAccountSheet = false
+    @State private var signupEmail = ""
+    @State private var signupPassword = ""
+    @State private var signupFirstName = ""
+    @State private var signupLastName = ""
+    @State private var signupChapter = ""
+    @State private var signupError: String?
 
     var body: some View {
         ZStack {
@@ -300,7 +310,14 @@ struct LoginView: View {
                 .padding(.top, 26)
 
                 Button {
-                    Task { await auth.createAccount(email: email, password: password) }
+                    signupError = nil
+                    if signupEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        signupEmail = email
+                    }
+                    if signupPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        signupPassword = password
+                    }
+                    showCreateAccountSheet = true
                 } label: {
                     Text("New User? Create Account.")
                         .font(.system(size: 17, weight: .semibold, design: .rounded))
@@ -332,14 +349,173 @@ struct LoginView: View {
             }
             .padding(.horizontal, 24)
         }
+        .sheet(isPresented: $showCreateAccountSheet) {
+            createAccountSheet
+        }
+    }
+
+    private var createAccountSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Tell us about your membership")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.text)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Email Address")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Theme.text)
+
+                        TextField("Email Address", text: $signupEmail)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
+                            .keyboardType(.emailAddress)
+                            .foregroundStyle(Theme.text)
+                            .padding(.horizontal, 16)
+                            .frame(height: 52)
+                            .background(Theme.field)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(Theme.stroke, lineWidth: 1)
+                            )
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Password")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Theme.text)
+
+                        SecureField("Password", text: $signupPassword)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
+                            .foregroundStyle(Theme.text)
+                            .padding(.horizontal, 16)
+                            .frame(height: 52)
+                            .background(Theme.field)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(Theme.stroke, lineWidth: 1)
+                            )
+                    }
+
+                    signupInputField(title: "First Name", text: $signupFirstName)
+                    signupInputField(title: "Last Name", text: $signupLastName)
+                    signupInputField(title: "Chapter", text: $signupChapter)
+
+                    if let signupError {
+                        Text(signupError)
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundStyle(Theme.text.opacity(0.75))
+                            .multilineTextAlignment(.leading)
+                    }
+
+                    if let authError = auth.authError, signupError == nil {
+                        Text(authError)
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundStyle(Theme.text.opacity(0.75))
+                            .multilineTextAlignment(.leading)
+                    }
+
+                    Button {
+                        Task { await submitCreateAccount() }
+                    } label: {
+                        Text(auth.isBusy ? "Creating Account..." : "Create Account")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 54)
+                            .background(Theme.primary)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+                    .disabled(auth.isBusy)
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 14)
+                .padding(.bottom, 24)
+            }
+            .scrollIndicators(.hidden)
+            .background(Theme.page.ignoresSafeArea())
+            .navigationTitle("Create Account")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        showCreateAccountSheet = false
+                    }
+                    .disabled(auth.isBusy)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func signupInputField(title: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(Theme.text)
+
+            TextField(title, text: text)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled(true)
+                .foregroundStyle(Theme.text)
+                .padding(.horizontal, 16)
+                .frame(height: 52)
+                .background(Theme.field)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Theme.stroke, lineWidth: 1)
+                )
+        }
+    }
+
+    private func submitCreateAccount() async {
+        signupError = nil
+
+        let signupEmailValue = signupEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let signupPasswordValue = signupPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        let firstName = signupFirstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lastName = signupLastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let chapter = signupChapter.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !signupEmailValue.isEmpty, !signupPasswordValue.isEmpty else {
+            signupError = "Enter email address and password."
+            return
+        }
+
+        guard !firstName.isEmpty, !lastName.isEmpty, !chapter.isEmpty else {
+            signupError = "Enter first name, last name, and chapter."
+            return
+        }
+
+        await auth.createAccount(email: signupEmailValue, password: signupPasswordValue)
+
+        guard auth.isAuthenticated else {
+            signupError = auth.authError
+            return
+        }
+
+        store.updateProfileFromSignup(firstName: firstName, lastName: lastName, chapter: chapter)
+        email = signupEmailValue
+        password = signupPasswordValue
+        showCreateAccountSheet = false
+        signupEmail = ""
+        signupPassword = ""
+        signupFirstName = ""
+        signupLastName = ""
+        signupChapter = ""
     }
 }
 
 /// Root view that owns shared app state (`MemberAppStore`) and injects it
 /// into each tab via `environmentObject`.
 struct ContentView: View {
-    /// One shared state object for the whole app lifecycle.
-    @StateObject private var store = MemberAppStore()
+    /// Shared state object for the authenticated app lifecycle.
+    @ObservedObject var store: MemberAppStore
     @State private var selectedTab = 0
     @State private var introStarted = false
     @State private var introCompleted = false

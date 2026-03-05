@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>API_KEY</key>
-	<string>AIzaSyAkNLSgos3Z18dTFhrzoN5ucgFrwg8CW1Y</string>
+	<string>AIzaSyDYaaQjsEUlhEJ67AmPhwhalLZBMmxhYKw</string>
 	<key>GCM_SENDER_ID</key>
-	<string>298441380960</string>
+	<string>104364140944</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>faizshah.FBLA-CONNECT</string>
 	<key>PROJECT_ID</key>
-	<string>testingdb-a5b90</string>
+	<string>fbla-connect-495ce</string>
 	<key>STORAGE_BUCKET</key>
-	<string>testingdb-a5b90.firebasestorage.app</string>
+	<string>fbla-connect-495ce.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:298441380960:ios:2442a059bc7be9f8ba1f05</string>
+	<string>1:104364140944:ios:c6d079d419e14eb49d6b15</string>
 </dict>
 </plist>

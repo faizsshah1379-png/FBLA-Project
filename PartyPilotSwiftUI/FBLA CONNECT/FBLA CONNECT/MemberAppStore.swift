@@ -278,6 +278,13 @@ final class MemberAppStore: ObservableObject {
         }
     }
 
+    func updateProfileFromSignup(firstName: String, lastName: String, chapter: String) {
+        profile.firstName = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        profile.lastName = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        profile.chapter = chapter.trimmingCharacters(in: .whitespacesAndNewlines)
+        saveProfile()
+    }
+
     func addReminder() {
         guard reminderValidationMessage == nil else { return }
         reminders.insert(ReminderItem(title: reminderTitle, date: reminderDate), at: 0)
