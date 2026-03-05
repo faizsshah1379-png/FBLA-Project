@@ -19,7 +19,16 @@ final class AuthViewModel: ObservableObject {
             return
         }
 
-        isAuthenticated = true
+        do {
+            try await authenticateWithFirebaseREST(
+                endpoint: "signInWithPassword",
+                email: cleanEmail,
+                password: cleanPassword
+            )
+            isAuthenticated = true
+        } catch {
+            authError = error.localizedDescription
+        }
     }
 
     func createAccount(email: String, password: String) async {
@@ -35,7 +44,16 @@ final class AuthViewModel: ObservableObject {
             return
         }
 
-        isAuthenticated = true
+        do {
+            try await authenticateWithFirebaseREST(
+                endpoint: "signUp",
+                email: cleanEmail,
+                password: cleanPassword
+            )
+            isAuthenticated = true
+        } catch {
+            authError = error.localizedDescription
+        }
     }
 
     func resetPassword(email: String) async {
@@ -84,6 +102,60 @@ final class AuthViewModel: ObservableObject {
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
             throw NSError(domain: "Auth", code: 3, userInfo: [NSLocalizedDescriptionKey: "Could not send reset email. Check that Email/Password is enabled in Firebase Auth."])
         }
+    }
+
+    private func authenticateWithFirebaseREST(endpoint: String, email: String, password: String) async throws {
+        guard let apiKey = firebaseWebAPIKey(), !apiKey.isEmpty else {
+            throw NSError(domain: "Auth", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing Firebase API key. Add GoogleService-Info.plist to the app target."])
+        }
+
+        guard let url = URL(string: "https://identitytoolkit.googleapis.com/v1/accounts:\(endpoint)?key=\(apiKey)") else {
+            throw NSError(domain: "Auth", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid Firebase endpoint URL."])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "email": email,
+            "password": password,
+            "returnSecureToken": true
+        ])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "Auth", code: 3, userInfo: [NSLocalizedDescriptionKey: "No response from Firebase."])
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = firebaseAuthErrorMessage(from: data)
+            throw NSError(domain: "Auth", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+    }
+
+    private func firebaseAuthErrorMessage(from data: Data) -> String {
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let error = json["error"] as? [String: Any],
+           let code = error["message"] as? String {
+            switch code {
+            case "EMAIL_NOT_FOUND":
+                return "No account found for this email."
+            case "INVALID_PASSWORD":
+                return "Incorrect password."
+            case "INVALID_LOGIN_CREDENTIALS":
+                return "Invalid email or password."
+            case "EMAIL_EXISTS":
+                return "An account with this email already exists."
+            case "WEAK_PASSWORD : Password should be at least 6 characters":
+                return "Password must be at least 6 characters."
+            case "OPERATION_NOT_ALLOWED":
+                return "Enable Email/Password sign-in in Firebase Authentication."
+            default:
+                return code.replacingOccurrences(of: "_", with: " ").capitalized
+            }
+        }
+
+        return "Authentication failed. Please try again."
     }
 
     private func firebaseWebAPIKey() -> String? {
