@@ -5,6 +5,11 @@ final class AuthViewModel: ObservableObject {
     @Published var isAuthenticated = false
     @Published var isBusy = false
     @Published var authError: String?
+    private let authSessionKey = "fbla.auth.session.v1"
+
+    init() {
+        isAuthenticated = loadStoredSession() != nil
+    }
 
     func signIn(email: String, password: String) async {
         authError = nil
@@ -20,12 +25,15 @@ final class AuthViewModel: ObservableObject {
         }
 
         do {
-            try await authenticateWithFirebaseREST(
+            let session = try await authenticateWithFirebaseREST(
                 endpoint: "signInWithPassword",
                 email: cleanEmail,
                 password: cleanPassword
             )
-            isAuthenticated = true
+            storeSession(session)
+            withAnimation(.easeInOut(duration: 0.45)) {
+                isAuthenticated = true
+            }
         } catch {
             authError = error.localizedDescription
         }
@@ -45,12 +53,15 @@ final class AuthViewModel: ObservableObject {
         }
 
         do {
-            try await authenticateWithFirebaseREST(
+            let session = try await authenticateWithFirebaseREST(
                 endpoint: "signUp",
                 email: cleanEmail,
                 password: cleanPassword
             )
-            isAuthenticated = true
+            storeSession(session)
+            withAnimation(.easeInOut(duration: 0.45)) {
+                isAuthenticated = true
+            }
         } catch {
             authError = error.localizedDescription
         }
@@ -77,8 +88,11 @@ final class AuthViewModel: ObservableObject {
 
     func signOut() {
         authError = nil
+        clearStoredSession()
 
-        isAuthenticated = false
+        withAnimation(.easeInOut(duration: 0.35)) {
+            isAuthenticated = false
+        }
     }
 
     private func sendPasswordResetViaREST(email: String) async throws {
@@ -104,7 +118,7 @@ final class AuthViewModel: ObservableObject {
         }
     }
 
-    private func authenticateWithFirebaseREST(endpoint: String, email: String, password: String) async throws {
+    private func authenticateWithFirebaseREST(endpoint: String, email: String, password: String) async throws -> AuthSession {
         guard let apiKey = firebaseWebAPIKey(), !apiKey.isEmpty else {
             throw NSError(domain: "Auth", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing Firebase API key. Add GoogleService-Info.plist to the app target."])
         }
@@ -130,6 +144,12 @@ final class AuthViewModel: ObservableObject {
         guard (200...299).contains(httpResponse.statusCode) else {
             let message = firebaseAuthErrorMessage(from: data)
             throw NSError(domain: "Auth", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+
+        do {
+            return try JSONDecoder().decode(AuthSession.self, from: data)
+        } catch {
+            throw NSError(domain: "Auth", code: 4, userInfo: [NSLocalizedDescriptionKey: "Unexpected Firebase login response."])
         }
     }
 
@@ -166,20 +186,44 @@ final class AuthViewModel: ObservableObject {
         }
         return apiKey
     }
+
+    private func loadStoredSession() -> AuthSession? {
+        guard let data = UserDefaults.standard.data(forKey: authSessionKey) else { return nil }
+        return try? JSONDecoder().decode(AuthSession.self, from: data)
+    }
+
+    private func storeSession(_ session: AuthSession) {
+        guard let data = try? JSONEncoder().encode(session) else { return }
+        UserDefaults.standard.set(data, forKey: authSessionKey)
+    }
+
+    private func clearStoredSession() {
+        UserDefaults.standard.removeObject(forKey: authSessionKey)
+    }
+}
+
+private struct AuthSession: Codable {
+    let idToken: String
+    let refreshToken: String
+    let localId: String
+    let email: String
 }
 
 struct RootGateView: View {
     @StateObject private var auth = AuthViewModel()
 
     var body: some View {
-        Group {
+        ZStack {
             if auth.isAuthenticated {
                 ContentView()
                     .environmentObject(auth)
+                    .transition(.opacity)
             } else {
                 LoginView(auth: auth)
+                    .transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.45), value: auth.isAuthenticated)
     }
 }
 
@@ -191,7 +235,7 @@ struct LoginView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Theme.page.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 Spacer().frame(height: 80)
@@ -204,11 +248,11 @@ struct LoginView: View {
 
                 Text("Sign In")
                     .font(.system(size: 52, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.text)
 
                 Text("Sign in to your account")
                     .font(.system(size: 19, weight: .regular, design: .rounded))
-                    .foregroundStyle(Color.white.opacity(0.6))
+                    .foregroundStyle(Theme.muted)
                     .padding(.top, 4)
                     .padding(.bottom, 42)
 
@@ -217,20 +261,28 @@ struct LoginView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
                         .keyboardType(.emailAddress)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.text)
                         .padding(.horizontal, 18)
                         .frame(height: 64)
-                        .background(Color(red: 0.09, green: 0.1, blue: 0.14))
+                        .background(Theme.field)
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(Theme.stroke, lineWidth: 1)
+                        )
 
                     SecureField("Password", text: $password)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.text)
                         .padding(.horizontal, 18)
                         .frame(height: 64)
-                        .background(Color(red: 0.09, green: 0.1, blue: 0.14))
+                        .background(Theme.field)
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(Theme.stroke, lineWidth: 1)
+                        )
                 }
 
                 Button {
@@ -241,7 +293,7 @@ struct LoginView: View {
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 64)
-                        .background(Color(red: 0.08, green: 0.52, blue: 0.96))
+                        .background(Theme.primary)
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
                 .disabled(auth.isBusy)
@@ -253,7 +305,7 @@ struct LoginView: View {
                     Text("New User? Create Account.")
                         .font(.system(size: 17, weight: .semibold, design: .rounded))
                 }
-                .foregroundStyle(Color(red: 0.08, green: 0.52, blue: 0.96))
+                .foregroundStyle(Theme.primary)
                 .padding(.top, 32)
                 .disabled(auth.isBusy)
 
@@ -263,14 +315,14 @@ struct LoginView: View {
                     Text("Forgot Password?")
                         .font(.system(size: 17, weight: .regular, design: .rounded))
                 }
-                .foregroundStyle(Color(red: 0.08, green: 0.52, blue: 0.96))
+                .foregroundStyle(Theme.primary)
                 .padding(.top, 28)
                 .disabled(auth.isBusy)
 
                 if let authError = auth.authError {
                     Text(authError)
                         .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.75))
+                        .foregroundStyle(Theme.text.opacity(0.75))
                         .multilineTextAlignment(.center)
                         .padding(.top, 20)
                         .padding(.horizontal, 10)

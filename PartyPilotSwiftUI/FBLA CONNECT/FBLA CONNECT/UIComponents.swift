@@ -8,19 +8,26 @@ struct AppPage<Content: View>: View {
     var greeting: String? = nil
     var greetingTopPadding: CGFloat = 4
     var showHeader: Bool = true
+    var topTrailingContent: AnyView? = nil
     @ViewBuilder let content: Content
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Spacer()
-                    Image("FBLALogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 62, height: 62)
-                        .accessibilityHidden(true)
-                    Spacer()
+                ZStack(alignment: .trailing) {
+                    HStack {
+                        Spacer()
+                        Image("FBLALogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 62, height: 62)
+                            .accessibilityHidden(true)
+                        Spacer()
+                    }
+
+                    if let topTrailingContent {
+                        topTrailingContent
+                    }
                 }
                 .padding(.top, 4)
 

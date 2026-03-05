@@ -27,7 +27,19 @@ struct ProfileTabView: View {
         AppPage(
             title: "Member Profile",
             subtitle: "Personal member identity and chapter engagement details.",
-            showHeader: false
+            showHeader: false,
+            topTrailingContent: AnyView(
+                Button("Sign Out") {
+                    auth.signOut()
+                }
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(Theme.primary)
+                .clipShape(Capsule())
+                .accessibilityLabel("Sign out")
+            )
         ) {
             switch mode {
             case .editing:
@@ -49,20 +61,6 @@ struct ProfileTabView: View {
             hasInitializedSavedProfile = true
             store.saveProfile()
             mode = .summary
-        }
-        .overlay(alignment: .topTrailing) {
-            Button("Sign Out") {
-                auth.signOut()
-            }
-            .font(.system(size: 14, weight: .bold, design: .rounded))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .background(Theme.primary)
-            .clipShape(Capsule())
-            .padding(.top, 22)
-            .padding(.trailing, 16)
-            .accessibilityLabel("Sign out")
         }
     }
 
@@ -224,20 +222,68 @@ struct ProfileTabView: View {
 
             SectionTitle("Chapter Social Channels")
             ForEach(store.socialChannels) { channel in
-                VStack(alignment: .leading, spacing: 8) {
-                    StandardCard(title: channel.platform, subtitle: channel.handle)
-                    HStack(spacing: 12) {
-                        socialActionButton(symbol: appSymbol(for: channel), accessibilityLabel: "Open \(channel.platform) app") {
-                            openApp(for: channel)
-                        }
+                socialChannelCard(channel)
+            }
+        }
+    }
 
-                        socialActionButton(symbol: "desktopcomputer", accessibilityLabel: "Open \(channel.platform) on web") {
-                            openWeb(for: channel)
-                        }
-                    }
+    private func socialChannelCard(_ channel: SocialChannel) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 7) {
+                Text(channel.platform)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.text)
+
+                Text(channel.handle)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(Theme.muted)
+            }
+
+            Spacer(minLength: 8)
+
+            HStack(spacing: 10) {
+                socialAppButton(for: channel) {
+                    openApp(for: channel)
+                }
+
+                socialActionButton(symbol: "desktopcomputer", accessibilityLabel: "Open \(channel.platform) on web") {
+                    openWeb(for: channel)
                 }
             }
         }
+        .padding(13)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Theme.stroke, lineWidth: 1)
+        )
+    }
+
+    private func socialAppButton(for channel: SocialChannel, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Group {
+                if channel.platform.lowercased() == "x" {
+                    Image("twitterlogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 30, height: 30)
+                } else {
+                    Image(systemName: appSymbol(for: channel))
+                        .font(.system(size: 20, weight: .semibold))
+                }
+            }
+            .foregroundStyle(Theme.primary)
+            .frame(width: 44, height: 44)
+            .background(Theme.surface)
+            .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(Theme.stroke, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open \(channel.platform) app")
     }
 
     private var connectionGridColumns: [GridItem] {
