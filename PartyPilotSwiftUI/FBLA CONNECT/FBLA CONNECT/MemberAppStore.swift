@@ -16,6 +16,7 @@ final class MemberAppStore: ObservableObject {
         firstName: "Jordan",
         lastName: "Lee",
         chapter: "Franklin High School",
+        state: "New Jersey",
         role: "Chapter VP",
         gradYear: "2027",
         interests: "Event Planning, Finance, Leadership"
@@ -62,13 +63,6 @@ final class MemberAppStore: ObservableObject {
 
     let announcements: [AnnouncementItem] = [
         .init(
-            title: "SLC registration deadline moved to March 14",
-            source: "State FBLA",
-            posted: "2h ago",
-            body: "All chapters must finalize competitor rosters by Friday at 5:00 PM.",
-            url: "https://www.fbla.org/conferences/"
-        ),
-        .init(
             title: "New objective test prep packet released",
             source: "National FBLA",
             posted: "6h ago",
@@ -105,7 +99,7 @@ final class MemberAppStore: ObservableObject {
         )
     ]
 
-    let socialChannels: [SocialChannel] = [
+    let defaultSocialChannels: [SocialChannel] = [
         .init(platform: "Instagram", handle: "@northview_fbla", appURL: "instagram://user?username=northview_fbla", webURL: "https://www.instagram.com/northview_fbla"),
         .init(platform: "YouTube", handle: "Northview FBLA", appURL: "youtube://www.youtube.com/@northviewfbla", webURL: "https://www.youtube.com"),
         .init(platform: "LinkedIn", handle: "Northview FBLA Alumni", appURL: "linkedin://company", webURL: "https://www.linkedin.com"),
@@ -186,14 +180,43 @@ final class MemberAppStore: ObservableObject {
         return source.filter { $0.title.lowercased().contains(q) || $0.source.lowercased().contains(q) || $0.body.lowercased().contains(q) }
     }
 
-    /// Infers likely state from chapter name text.
-    /// Example: "Franklin High School" => "New Jersey".
-    var detectedState: String {
+    private func canonicalState(from input: String) -> String? {
+        let normalized = input
+            .lowercased()
+            .replacingOccurrences(of: ".", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !normalized.isEmpty else { return nil }
+
+        switch normalized {
+        case "new jersey", "newjersey", "nj":
+            return "New Jersey"
+        case "new york", "newyork", "ny":
+            return "New York"
+        case "pennsylvania", "pa":
+            return "Pennsylvania"
+        case "texas", "tx":
+            return "Texas"
+        case "california", "ca":
+            return "California"
+        case "florida", "fl":
+            return "Florida"
+        case "georgia", "ga":
+            return "Georgia"
+        case "north carolina", "northcarolina", "nc":
+            return "North Carolina"
+        default:
+            return nil
+        }
+    }
+
+    private func inferredStateFromChapter() -> String {
         let chapter = profile.chapter.lowercased()
         let mappings: [(String, String)] = [
             ("new jersey", "New Jersey"),
             ("nj", "New Jersey"),
             ("franklin high school", "New Jersey"),
+            ("fhs", "New Jersey"),
             ("texas", "Texas"),
             ("tx", "Texas"),
             ("california", "California"),
@@ -217,22 +240,57 @@ final class MemberAppStore: ObservableObject {
         return "National"
     }
 
+    private var chapterLabelForContent: String {
+        let trimmed = profile.chapter.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Your Chapter" : trimmed
+    }
+
+    /// Uses explicit profile state when available, then falls back to chapter inference.
+    var detectedState: String {
+        canonicalState(from: profile.state) ?? inferredStateFromChapter()
+    }
+
+    private func stateSlug(_ state: String) -> String {
+        let slug = state
+            .lowercased()
+            .replacingOccurrences(of: "[^a-z0-9]+", with: "", options: .regularExpression)
+        return slug.isEmpty ? "fbla" : slug
+    }
+
+    /// State-based social channels (chapter context is still shown in UI labels).
+    var socialChannels: [SocialChannel] {
+        let state = detectedState
+        guard state != "National" else { return defaultSocialChannels }
+
+        let slug = stateSlug(state)
+        let instagramHandle = "\(slug)fbla"
+        let xHandle = "\(slug)FBLA"
+
+        return [
+            .init(platform: "Instagram", handle: "@\(instagramHandle)", appURL: "instagram://user?username=\(instagramHandle)", webURL: "https://www.instagram.com/\(instagramHandle)"),
+            .init(platform: "YouTube", handle: "\(state) FBLA", appURL: "youtube://www.youtube.com/@\(slug)fbla", webURL: "https://www.youtube.com/results?search_query=\(state.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? state)+FBLA"),
+            .init(platform: "LinkedIn", handle: "\(state) FBLA", appURL: "linkedin://company", webURL: "https://www.linkedin.com/search/results/all/?keywords=\(state.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? state)%20FBLA"),
+            .init(platform: "X", handle: "@\(xHandle)", appURL: "twitter://user?screen_name=\(xHandle)", webURL: "https://x.com/\(xHandle)")
+        ]
+    }
+
     /// Adds state-priority news cards to the top of the feed.
     var personalizedAnnouncements: [AnnouncementItem] {
         let state = detectedState
+        let chapter = chapterLabelForContent
         let stateFeed: [AnnouncementItem] = [
             .init(
                 title: "\(state) FBLA state competition schedule update",
                 source: "\(state) FBLA",
                 posted: "Today",
-                body: "Check reporting times, event room locations, and final deadlines for the \(state) conference.",
+                body: "\(chapter) members: check reporting times, event room locations, and final deadlines for the \(state) conference.",
                 url: "https://www.fbla.org/conferences/"
             ),
             .init(
                 title: "\(state) chapter advisor bulletin",
                 source: "\(state) FBLA",
                 posted: "Today",
-                body: "Updated guidance posted for competitive event submissions, dress code reminders, and presentation check-in steps.",
+                body: "State guidance and chapter action items were updated for \(chapter).",
                 url: "https://www.fbla.org/adviser-resource-center/"
             )
         ]
@@ -240,22 +298,33 @@ final class MemberAppStore: ObservableObject {
         return stateFeed + announcements
     }
 
-    /// Event list personalized to detected state.
+    /// Event list personalized to detected state while keeping chapter references.
     /// For NJ, includes requested SLC dates March 9-11.
     var chapterEvents: [EventItem] {
+        let chapter = chapterLabelForContent
         if detectedState == "New Jersey" {
             return [
                 .init(title: "NJ FBLA SLC - Day 1 (Opening Session)", date: "2026-03-09", location: "Harrah's Waterfront Conference Center", type: "Competition"),
                 .init(title: "NJ FBLA SLC - Day 2 (Testing & Presentations)", date: "2026-03-10", location: "Harrah's Waterfront Conference Center", type: "Competition"),
                 .init(title: "NJ FBLA SLC - Day 3 (Finals & Awards)", date: "2026-03-11", location: "Harrah's Waterfront Conference Center", type: "Competition"),
-                .init(title: "Franklin FBLA Chapter Debrief Meeting", date: "2026-03-12", location: "Franklin HS Room 214", type: "Meeting"),
-                .init(title: "NJ FBLA SLC Registration Deadline", date: "2026-03-07", location: "NJ FBLA Portal", type: "Deadline"),
-                .init(title: "Franklin Competitive Event Practice", date: "2026-03-17", location: "Franklin HS Media Center", type: "Practice"),
+                .init(title: "\(chapter) FBLA Chapter Debrief Meeting", date: "2026-03-12", location: "\(chapter) Room 214", type: "Meeting"),
+                .init(title: "\(chapter) Competitive Event Practice", date: "2026-03-17", location: "\(chapter) Media Center", type: "Practice"),
                 .init(title: "NJ FBLA Leadership Workshop", date: "2026-04-07", location: "Rutgers Business Center", type: "Workshop"),
-                .init(title: "Franklin HS Officer Elections", date: "2026-04-18", location: "Franklin HS Auditorium", type: "Leadership")
+                .init(title: "\(chapter) Officer Elections", date: "2026-04-18", location: "\(chapter) Auditorium", type: "Leadership")
             ]
         }
-        return defaultEvents
+        if detectedState == "National" {
+            return defaultEvents
+        }
+
+        return [
+            .init(title: "\(chapter) Chapter Meeting", date: "2026-03-08", location: "Business Lab 204", type: "Meeting"),
+            .init(title: "\(detectedState) FBLA Registration Deadline", date: "2026-03-12", location: "\(detectedState) FBLA Portal", type: "Deadline"),
+            .init(title: "\(chapter) Resume Workshop", date: "2026-03-16", location: "Library", type: "Workshop"),
+            .init(title: "\(chapter) Mock Interview Night", date: "2026-03-19", location: "Auditorium", type: "Practice"),
+            .init(title: "\(chapter) Community Service Drive", date: "2026-04-05", location: "Downtown Hub", type: "Service"),
+            .init(title: "\(chapter) Officer Elections", date: "2026-04-17", location: "Room 110", type: "Leadership")
+        ]
     }
 
     /// Text exported by ShareLink in Community tab.
@@ -264,6 +333,7 @@ final class MemberAppStore: ObservableObject {
         FBLA Member Connection Card
         Name: \(profile.fullName)
         Chapter: \(profile.chapter)
+        State: \(detectedState)
         Role: \(profile.role)
         Graduation Year: \(profile.gradYear)
         Interests: \(profile.interests)
@@ -278,10 +348,11 @@ final class MemberAppStore: ObservableObject {
         }
     }
 
-    func updateProfileFromSignup(firstName: String, lastName: String, chapter: String) {
+    func updateProfileFromSignup(firstName: String, lastName: String, chapter: String, state: String) {
         profile.firstName = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
         profile.lastName = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
         profile.chapter = chapter.trimmingCharacters(in: .whitespacesAndNewlines)
+        profile.state = state.trimmingCharacters(in: .whitespacesAndNewlines)
         saveProfile()
     }
 

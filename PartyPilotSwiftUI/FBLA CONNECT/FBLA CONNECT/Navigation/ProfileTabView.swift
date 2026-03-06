@@ -16,6 +16,11 @@ struct ProfileTabView: View {
     @State private var connectionCheckmarkOpacity = 0.0
     @State private var connectionCheckmarkRotation = -18.0
     @State private var hasInitializedSavedProfile = false
+    @State private var broadcastTitle = ""
+    @State private var broadcastBody = ""
+    @State private var broadcastStatus: String?
+    @State private var broadcastStatusIsError = false
+    @State private var isSendingBroadcast = false
 
     private enum ProfileMode {
         case editing
@@ -68,12 +73,13 @@ struct ProfileTabView: View {
         VStack(alignment: .leading, spacing: 14) {
             profileCard(
                 title: "Member Profile",
-                subtitle: "\(store.profile.chapter) • \(store.profile.role)"
+                subtitle: "\(store.profile.chapter) • \(store.detectedState) • \(store.profile.role)"
             )
 
             profileInput(label: "First Name", text: $store.profile.firstName, placeholder: "Ex: Jordan")
             profileInput(label: "Last Name", text: $store.profile.lastName, placeholder: "Ex: Lee")
             profileInput(label: "Chapter", text: $store.profile.chapter, placeholder: "Ex: Franklin High School")
+            profileInput(label: "State", text: $store.profile.state, placeholder: "Ex: NJ or New Jersey")
             profileInput(label: "Leadership Role", text: $store.profile.role, placeholder: "Ex: Chapter VP")
             profileInput(label: "Graduation Year", text: $store.profile.gradYear, placeholder: "Ex: 2027")
             profileInput(label: "Interests", text: $store.profile.interests, placeholder: "Ex: Event Planning, Finance")
@@ -110,7 +116,7 @@ struct ProfileTabView: View {
         VStack(alignment: .leading, spacing: 14) {
             profileCard(
                 title: store.profile.fullName,
-                subtitle: "\(store.profile.chapter) • \(store.profile.role)"
+                subtitle: "\(store.profile.chapter) • \(store.detectedState) • \(store.profile.role)"
             )
 
             Button {
@@ -218,6 +224,11 @@ struct ProfileTabView: View {
                     connectionInputCard
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
+            }
+
+            if auth.isAdmin {
+                SectionTitle("Admin Broadcast")
+                adminBroadcastCard
             }
 
             SectionTitle("Chapter Social Channels")
@@ -414,6 +425,74 @@ struct ProfileTabView: View {
         )
     }
 
+    private var adminBroadcastCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Send a push notification to everyone with the app.")
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundStyle(Theme.muted)
+
+            LabeledInput(label: "Title", text: $broadcastTitle, placeholder: "Ex: Meeting update")
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Message")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.muted)
+
+                ZStack(alignment: .topLeading) {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Theme.field)
+
+                    if broadcastBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("Type the notification message...")
+                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                            .foregroundStyle(Theme.muted.opacity(0.7))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                    }
+
+                    TextEditor(text: $broadcastBody)
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .foregroundStyle(Theme.text)
+                        .scrollContentBackground(.hidden)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .frame(minHeight: 120)
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Theme.stroke, lineWidth: 1)
+                )
+            }
+
+            if let broadcastStatus {
+                Text(broadcastStatus)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(broadcastStatusIsError ? Color.red : Color.green)
+            }
+
+            Button {
+                Task { await sendAdminBroadcast() }
+            } label: {
+                Text(isSendingBroadcast ? "Sending..." : "Send Push Notification")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Theme.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(isSendingBroadcast)
+        }
+        .padding(14)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Theme.stroke, lineWidth: 1)
+        )
+    }
+
     private func socialActionButton(symbol: String, accessibilityLabel: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
@@ -512,6 +591,50 @@ struct ProfileTabView: View {
             withAnimation(.easeInOut(duration: 0.22)) {
                 mode = .summary
             }
+        }
+    }
+
+    @MainActor
+    private func sendAdminBroadcast() async {
+        broadcastStatus = nil
+
+        let cleanTitle = broadcastTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanBody = broadcastBody.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard auth.isAdmin else {
+            broadcastStatusIsError = true
+            broadcastStatus = "Only admin accounts can send broadcasts."
+            return
+        }
+
+        guard !cleanTitle.isEmpty, !cleanBody.isEmpty else {
+            broadcastStatusIsError = true
+            broadcastStatus = "Enter both a title and message."
+            return
+        }
+
+        guard let idToken = auth.currentIDToken else {
+            broadcastStatusIsError = true
+            broadcastStatus = "Session expired. Sign in again."
+            return
+        }
+
+        isSendingBroadcast = true
+        defer { isSendingBroadcast = false }
+
+        do {
+            try await AdminPushBroadcastService.sendBroadcast(
+                idToken: idToken,
+                title: cleanTitle,
+                body: cleanBody
+            )
+            broadcastStatusIsError = false
+            broadcastStatus = "Broadcast sent successfully."
+            broadcastTitle = ""
+            broadcastBody = ""
+        } catch {
+            broadcastStatusIsError = true
+            broadcastStatus = error.localizedDescription
         }
     }
 }

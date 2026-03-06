@@ -6,10 +6,32 @@ final class AuthViewModel: ObservableObject {
     @Published var isAuthenticated = false
     @Published var isBusy = false
     @Published var authError: String?
+    @Published private(set) var signedInEmail = ""
+    @Published private(set) var isAdmin = false
+
     private let authSessionKey = "fbla.auth.session.v1"
+    private let adminAllowlist: Set<String>
+    private var currentSession: AuthSession?
+
+    var currentIDToken: String? {
+        currentSession?.idToken
+    }
+
+    var hasConfiguredAdmins: Bool {
+        !adminAllowlist.isEmpty
+    }
 
     init() {
-        isAuthenticated = loadStoredSession() != nil
+        adminAllowlist = Self.loadAdminAllowlist()
+
+        if let storedSession = loadStoredSession() {
+            currentSession = storedSession
+            isAuthenticated = true
+        } else {
+            isAuthenticated = false
+        }
+
+        refreshSessionDerivedState()
     }
 
     func signIn(email: String, password: String) async {
@@ -89,6 +111,7 @@ final class AuthViewModel: ObservableObject {
 
     func signOut() {
         authError = nil
+        isBusy = false
         clearStoredSession()
 
         withAnimation(.easeInOut(duration: 0.35)) {
@@ -196,10 +219,56 @@ final class AuthViewModel: ObservableObject {
     private func storeSession(_ session: AuthSession) {
         guard let data = try? JSONEncoder().encode(session) else { return }
         UserDefaults.standard.set(data, forKey: authSessionKey)
+        currentSession = session
+        refreshSessionDerivedState()
     }
 
     private func clearStoredSession() {
         UserDefaults.standard.removeObject(forKey: authSessionKey)
+        currentSession = nil
+        refreshSessionDerivedState()
+    }
+
+    private func refreshSessionDerivedState() {
+        signedInEmail = currentSession?.email ?? ""
+        let normalized = Self.normalizeEmail(signedInEmail)
+        isAdmin = adminAllowlist.contains(normalized)
+    }
+
+    private static func loadAdminAllowlist() -> Set<String> {
+        let rawValue = Bundle.main.object(forInfoDictionaryKey: "ADMIN_EMAILS")
+        let emails: [String]
+
+        if let list = rawValue as? [String] {
+            emails = list
+        } else if let csv = rawValue as? String {
+            emails = csv
+                .split { $0 == "," || $0 == ";" || $0.isNewline }
+                .map(String.init)
+        } else {
+            emails = []
+        }
+
+        let configured = Set(
+            emails
+                .map(normalizeEmail(_:))
+                .filter { !$0.isEmpty }
+        )
+
+        // Fallback so the owner account always has admin access even if
+        // custom Info.plist keys are omitted by the current Xcode project setup.
+        let fallback: Set<String> = [
+            "faizsshah1379@gmail.com",
+            "faizshah1379@gmail.com"
+        ]
+
+        return configured.isEmpty ? fallback : configured.union(fallback)
+    }
+
+    private static func normalizeEmail(_ email: String) -> String {
+        email
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
     }
 }
 
@@ -233,6 +302,11 @@ struct LoginView: View {
     @ObservedObject var auth: AuthViewModel
     @ObservedObject var store: MemberAppStore
 
+    private enum LoginField {
+        case email
+        case password
+    }
+
     @State private var email = ""
     @State private var password = ""
     @State private var showCreateAccountSheet = false
@@ -241,7 +315,9 @@ struct LoginView: View {
     @State private var signupFirstName = ""
     @State private var signupLastName = ""
     @State private var signupChapter = ""
+    @State private var signupState = ""
     @State private var signupError: String?
+    @FocusState private var focusedField: LoginField?
 
     var body: some View {
         ZStack {
@@ -271,7 +347,11 @@ struct LoginView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
                         .keyboardType(.emailAddress)
-                        .foregroundStyle(Theme.text)
+                        .focused($focusedField, equals: .email)
+                        .submitLabel(.next)
+                        .onSubmit { focusedField = .password }
+                        .foregroundColor(Theme.text)
+                        .tint(Theme.primary)
                         .padding(.horizontal, 18)
                         .frame(height: 64)
                         .background(Theme.field)
@@ -284,7 +364,13 @@ struct LoginView: View {
                     SecureField("Password", text: $password)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
-                        .foregroundStyle(Theme.text)
+                        .focused($focusedField, equals: .password)
+                        .submitLabel(.go)
+                        .onSubmit {
+                            Task { await auth.signIn(email: email, password: password) }
+                        }
+                        .foregroundColor(Theme.text)
+                        .tint(Theme.primary)
                         .padding(.horizontal, 18)
                         .frame(height: 64)
                         .background(Theme.field)
@@ -316,6 +402,9 @@ struct LoginView: View {
                     }
                     if signupPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         signupPassword = password
+                    }
+                    if signupState.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        signupState = store.profile.state
                     }
                     showCreateAccountSheet = true
                 } label: {
@@ -351,6 +440,11 @@ struct LoginView: View {
         }
         .sheet(isPresented: $showCreateAccountSheet) {
             createAccountSheet
+        }
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                focusedField = .email
+            }
         }
     }
 
@@ -404,6 +498,7 @@ struct LoginView: View {
                     signupInputField(title: "First Name", text: $signupFirstName)
                     signupInputField(title: "Last Name", text: $signupLastName)
                     signupInputField(title: "Chapter", text: $signupChapter)
+                    signupInputField(title: "State (Ex: NJ or New Jersey)", text: $signupState)
 
                     if let signupError {
                         Text(signupError)
@@ -481,14 +576,15 @@ struct LoginView: View {
         let firstName = signupFirstName.trimmingCharacters(in: .whitespacesAndNewlines)
         let lastName = signupLastName.trimmingCharacters(in: .whitespacesAndNewlines)
         let chapter = signupChapter.trimmingCharacters(in: .whitespacesAndNewlines)
+        let state = signupState.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !signupEmailValue.isEmpty, !signupPasswordValue.isEmpty else {
             signupError = "Enter email address and password."
             return
         }
 
-        guard !firstName.isEmpty, !lastName.isEmpty, !chapter.isEmpty else {
-            signupError = "Enter first name, last name, and chapter."
+        guard !firstName.isEmpty, !lastName.isEmpty, !chapter.isEmpty, !state.isEmpty else {
+            signupError = "Enter first name, last name, chapter, and state."
             return
         }
 
@@ -499,7 +595,7 @@ struct LoginView: View {
             return
         }
 
-        store.updateProfileFromSignup(firstName: firstName, lastName: lastName, chapter: chapter)
+        store.updateProfileFromSignup(firstName: firstName, lastName: lastName, chapter: chapter, state: state)
         email = signupEmailValue
         password = signupPasswordValue
         showCreateAccountSheet = false
@@ -508,6 +604,7 @@ struct LoginView: View {
         signupFirstName = ""
         signupLastName = ""
         signupChapter = ""
+        signupState = ""
     }
 }
 

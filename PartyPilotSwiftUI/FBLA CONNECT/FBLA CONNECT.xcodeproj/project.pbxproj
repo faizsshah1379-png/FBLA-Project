@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		BEC080CA2F5A58F500898840 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 84A3783B2F590C6700F4C8D2 /* FirebaseAuth */; };
+		BEC080CB2F5A58F500898840 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 84A3783D2F590C6700F4C8D2 /* FirebaseCore */; };
+		BEC080CC2F5A58F500898840 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 84A3783F2F590C6700F4C8D2 /* FirebaseMessaging */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		BE4D8B472F578B9F00C2B703 /* FBLA CONNECT.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "FBLA CONNECT.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +29,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BEC080CC2F5A58F500898840 /* FirebaseMessaging in Frameworks */,
+				BEC080CB2F5A58F500898840 /* FirebaseCore in Frameworks */,
+				BEC080CA2F5A58F500898840 /* FirebaseAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -61,12 +70,16 @@
 			dependencies = (
 				84A3783C2F590C6700F4C8D2 /* PBXTargetDependency */,
 				84A3783E2F590C6700F4C8D2 /* PBXTargetDependency */,
+				84A378402F590C6700F4C8D2 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				BE4D8B492F578B9F00C2B703 /* FBLA CONNECT */,
 			);
 			name = "FBLA CONNECT";
 			packageProductDependencies = (
+				84A3783B2F590C6700F4C8D2 /* FirebaseAuth */,
+				84A3783D2F590C6700F4C8D2 /* FirebaseCore */,
+				84A3783F2F590C6700F4C8D2 /* FirebaseMessaging */,
 			);
 			productName = "FBLA CONNECT";
 			productReference = BE4D8B472F578B9F00C2B703 /* FBLA CONNECT.app */;
@@ -137,6 +150,10 @@
 		84A3783E2F590C6700F4C8D2 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			productRef = 84A3783D2F590C6700F4C8D2 /* FirebaseCore */;
+		};
+		84A378402F590C6700F4C8D2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 84A3783F2F590C6700F4C8D2 /* FirebaseMessaging */;
 		};
 /* End PBXTargetDependency section */
 
@@ -272,6 +289,8 @@
 				DEVELOPMENT_TEAM = 228NK7533M;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ADMIN_EMAILS = "faizsshah1379@gmail.com,faizshah1379@gmail.com";
+				INFOPLIST_KEY_PUSH_BROADCAST_ENDPOINT = "";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -305,6 +324,8 @@
 				DEVELOPMENT_TEAM = 228NK7533M;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ADMIN_EMAILS = "faizsshah1379@gmail.com,faizshah1379@gmail.com";
+				INFOPLIST_KEY_PUSH_BROADCAST_ENDPOINT = "";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -372,6 +393,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 8452257E2F5902C900309FB2 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCore;
+		};
+		84A3783F2F590C6700F4C8D2 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8452257E2F5902C900309FB2 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

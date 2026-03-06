@@ -5,6 +5,7 @@ struct MemberProfile: Codable {
     var firstName: String
     var lastName: String
     var chapter: String
+    var state: String
     var role: String
     var gradYear: String
     var interests: String
@@ -19,15 +20,17 @@ struct MemberProfile: Codable {
         case lastName
         case name
         case chapter
+        case state
         case role
         case gradYear
         case interests
     }
 
-    init(firstName: String, lastName: String, chapter: String, role: String, gradYear: String, interests: String) {
+    init(firstName: String, lastName: String, chapter: String, state: String = "", role: String, gradYear: String, interests: String) {
         self.firstName = firstName
         self.lastName = lastName
         self.chapter = chapter
+        self.state = state
         self.role = role
         self.gradYear = gradYear
         self.interests = interests
@@ -50,6 +53,7 @@ struct MemberProfile: Codable {
         }
 
         self.chapter = try container.decode(String.self, forKey: .chapter)
+        self.state = try container.decodeIfPresent(String.self, forKey: .state) ?? ""
         self.role = try container.decode(String.self, forKey: .role)
         self.gradYear = try container.decode(String.self, forKey: .gradYear)
         self.interests = try container.decode(String.self, forKey: .interests)
@@ -60,6 +64,7 @@ struct MemberProfile: Codable {
         try container.encode(firstName, forKey: .firstName)
         try container.encode(lastName, forKey: .lastName)
         try container.encode(chapter, forKey: .chapter)
+        try container.encode(state, forKey: .state)
         try container.encode(role, forKey: .role)
         try container.encode(gradYear, forKey: .gradYear)
         try container.encode(interests, forKey: .interests)
