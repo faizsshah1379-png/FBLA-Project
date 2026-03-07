@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Reusable page shell used by each tab:
 /// gradient header + scrolling content area.
@@ -59,6 +60,8 @@ struct AppPage<Content: View>: View {
             }
             .padding(16)
         }
+        .dismissKeyboardOnTap()
+        .scrollDismissesKeyboard(.interactively)
         .background(Theme.page.ignoresSafeArea())
     }
 }
@@ -156,5 +159,26 @@ struct SectionTitle: View {
             .font(.title3)
             .fontWeight(.bold)
             .foregroundStyle(Theme.text)
+    }
+}
+
+private struct DismissKeyboardOnTapModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .contentShape(Rectangle())
+            .onTapGesture {
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.resignFirstResponder),
+                    to: nil,
+                    from: nil,
+                    for: nil
+                )
+            }
+    }
+}
+
+extension View {
+    func dismissKeyboardOnTap() -> some View {
+        modifier(DismissKeyboardOnTapModifier())
     }
 }

@@ -6,13 +6,12 @@ import Combine
 /// Why this exists:
 /// - Holds all mutable UI state in one place.
 /// - Exposes computed data (filtered news, chapter events, validation).
-/// - Handles persistence (profile, reminders, connections) with UserDefaults.
+/// - Handles persistence (profile, reminders, connections) with UserDefaults + Firestore.
 @MainActor
 final class MemberAppStore: ObservableObject {
     // MARK: - Editable Member Data
 
-    /// Default sample profile requested by user.
-    @Published var profile = MemberProfile(
+    private static let defaultProfile = MemberProfile(
         firstName: "Jordan",
         lastName: "Lee",
         chapter: "Franklin High School",
@@ -21,6 +20,8 @@ final class MemberAppStore: ObservableObject {
         gradYear: "2027",
         interests: "Event Planning, Finance, Leadership"
     )
+
+    @Published var profile = defaultProfile
 
     // MARK: - Reminders
 
@@ -100,22 +101,39 @@ final class MemberAppStore: ObservableObject {
     ]
 
     let defaultSocialChannels: [SocialChannel] = [
-        .init(platform: "Instagram", handle: "@northview_fbla", appURL: "instagram://user?username=northview_fbla", webURL: "https://www.instagram.com/northview_fbla"),
-        .init(platform: "YouTube", handle: "Northview FBLA", appURL: "youtube://www.youtube.com/@northviewfbla", webURL: "https://www.youtube.com"),
-        .init(platform: "LinkedIn", handle: "Northview FBLA Alumni", appURL: "linkedin://company", webURL: "https://www.linkedin.com"),
-        .init(platform: "X", handle: "@NorthviewFBLA", appURL: "twitter://user?screen_name=NorthviewFBLA", webURL: "https://x.com/NorthviewFBLA")
+        .init(platform: "Instagram", handle: "@njfbla", appURL: "instagram://user?username=njfbla", webURL: "https://www.instagram.com/njfbla"),
+        .init(platform: "YouTube", handle: "@njfblaofficial", appURL: "youtube://www.youtube.com/@njfblaofficial", webURL: "https://www.youtube.com/@njfblaofficial"),
+        .init(platform: "LinkedIn", handle: "linkedin.com/in/njfbla", appURL: "https://www.linkedin.com/in/njfbla", webURL: "https://www.linkedin.com/in/njfbla"),
+        .init(platform: "X", handle: "@njfbla", appURL: "twitter://user?screen_name=njfbla", webURL: "https://x.com/njfbla")
+    ]
+
+    let newYorkSocialChannels: [SocialChannel] = [
+        .init(platform: "Instagram", handle: "@newyorkfbla", appURL: "instagram://user?username=newyorkfbla", webURL: "https://www.instagram.com/newyorkfbla"),
+        .init(platform: "YouTube", handle: "@newyorkfbla1931", appURL: "youtube://www.youtube.com/@newyorkfbla1931", webURL: "https://www.youtube.com/@newyorkfbla1931"),
+        .init(platform: "LinkedIn", handle: "linkedin.com/in/new-york-fbla-459451125", appURL: "https://www.linkedin.com/in/new-york-fbla-459451125", webURL: "https://www.linkedin.com/in/new-york-fbla-459451125"),
+        .init(platform: "X", handle: "@NewYorkFBLA", appURL: "twitter://user?screen_name=NewYorkFBLA", webURL: "https://x.com/NewYorkFBLA")
+    ]
+
+    private let newYorkSocialOverrideEmails: Set<String> = [
+        "sahibvassan2000@gmail.com",
+        "sahilvassan21@gmail.com"
     ]
 
     // MARK: - Persistence Keys
 
     private let remindersKey = "fbla.member.reminders.v2"
-    private let profileKey = "fbla.member.profile.v2"
+    private let profileCacheKeyPrefix = "fbla.member.profile.v3"
+    private let legacyProfileKey = "fbla.member.profile.v2"
     private let connectionsKey = "fbla.member.connections.v1"
+    private let firestoreCollection = "memberProfiles"
+
+    private var activeUserID: String?
+    private var activeIDToken: String?
+    private var activeUserEmail: String?
 
     // MARK: - Lifecycle
 
     init() {
-        loadProfile()
         loadReminders()
         loadConnections()
     }
@@ -257,10 +275,21 @@ final class MemberAppStore: ObservableObject {
         return slug.isEmpty ? "fbla" : slug
     }
 
+    private func normalizedEmail(_ email: String?) -> String? {
+        guard let email else { return nil }
+        let normalized = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized.isEmpty ? nil : normalized
+    }
+
     /// State-based social channels (chapter context is still shown in UI labels).
     var socialChannels: [SocialChannel] {
+        if let activeUserEmail,
+           newYorkSocialOverrideEmails.contains(activeUserEmail) {
+            return newYorkSocialChannels
+        }
+
         let state = detectedState
-        guard state != "National" else { return defaultSocialChannels }
+        guard state != "National", state != "New Jersey" else { return defaultSocialChannels }
 
         let slug = stateSlug(state)
         let instagramHandle = "\(slug)fbla"
@@ -343,17 +372,117 @@ final class MemberAppStore: ObservableObject {
     // MARK: - Public Mutations
 
     func saveProfile() {
-        if let encoded = try? JSONEncoder().encode(profile) {
-            UserDefaults.standard.set(encoded, forKey: profileKey)
+        persistProfileCache(profile, for: activeUserID)
+
+        guard let userID = activeUserID,
+              let idToken = activeIDToken else { return }
+
+        let currentProfile = profile
+        Task {
+            do {
+                try await saveProfileToFirestore(currentProfile, userID: userID, idToken: idToken)
+            } catch {
+                print("Member profile save failed: \(error.localizedDescription)")
+            }
         }
     }
 
-    func updateProfileFromSignup(firstName: String, lastName: String, chapter: String, state: String) {
+    func bindAuthenticatedUser(userID: String, idToken: String, email: String?) async {
+        let normalizedUserID = userID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedUserID.isEmpty else { return }
+
+        activeUserID = normalizedUserID
+        activeIDToken = idToken
+        activeUserEmail = normalizedEmail(email)
+
+        if let cached = loadCachedProfile(for: normalizedUserID) {
+            profile = cached
+        } else {
+            profile = Self.defaultProfile
+        }
+
+        do {
+            let remoteProfile = try await fetchProfileFromFirestore(userID: normalizedUserID, idToken: idToken)
+            guard activeUserID == normalizedUserID else { return }
+
+            if let remoteProfile {
+                profile = remoteProfile
+                persistProfileCache(remoteProfile, for: normalizedUserID)
+                return
+            }
+
+            if let cached = loadCachedProfile(for: normalizedUserID) {
+                profile = cached
+                try await saveProfileToFirestore(cached, userID: normalizedUserID, idToken: idToken)
+                return
+            }
+
+            if let legacy = loadLegacyProfile() {
+                profile = legacy
+                persistProfileCache(legacy, for: normalizedUserID)
+                try await saveProfileToFirestore(legacy, userID: normalizedUserID, idToken: idToken)
+                clearLegacyProfile()
+                return
+            }
+
+            profile = Self.defaultProfile
+            persistProfileCache(profile, for: normalizedUserID)
+            try await saveProfileToFirestore(profile, userID: normalizedUserID, idToken: idToken)
+        } catch {
+            guard activeUserID == normalizedUserID else { return }
+
+            if let cached = loadCachedProfile(for: normalizedUserID) {
+                profile = cached
+            } else if let legacy = loadLegacyProfile() {
+                profile = legacy
+            } else {
+                profile = Self.defaultProfile
+            }
+
+            print("Member profile sync failed: \(error.localizedDescription)")
+        }
+    }
+
+    func clearAuthenticatedUser() {
+        activeUserID = nil
+        activeIDToken = nil
+        activeUserEmail = nil
+        profile = Self.defaultProfile
+    }
+
+    func updateProfileFromSignup(
+        firstName: String,
+        lastName: String,
+        chapter: String,
+        state: String,
+        userID: String?,
+        idToken: String?,
+        email: String?
+    ) async {
         profile.firstName = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
         profile.lastName = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
         profile.chapter = chapter.trimmingCharacters(in: .whitespacesAndNewlines)
         profile.state = state.trimmingCharacters(in: .whitespacesAndNewlines)
-        saveProfile()
+
+        if let userID = userID?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !userID.isEmpty,
+           let idToken,
+           !idToken.isEmpty {
+            activeUserID = userID
+            activeIDToken = idToken
+        }
+        activeUserEmail = normalizedEmail(email) ?? activeUserEmail
+
+        persistProfileCache(profile, for: activeUserID)
+
+        guard let boundUserID = activeUserID,
+              let boundIDToken = activeIDToken else { return }
+
+        do {
+            try await saveProfileToFirestore(profile, userID: boundUserID, idToken: boundIDToken)
+        } catch {
+            print("Member profile signup save failed: \(error.localizedDescription)")
+        }
     }
 
     func addReminder() {
@@ -392,10 +521,142 @@ final class MemberAppStore: ObservableObject {
 
     // MARK: - Persistence Helpers
 
-    private func loadProfile() {
-        guard let data = UserDefaults.standard.data(forKey: profileKey),
-              let decoded = try? JSONDecoder().decode(MemberProfile.self, from: data) else { return }
-        profile = decoded
+    private func profileCacheKey(for userID: String) -> String {
+        "\(profileCacheKeyPrefix).\(userID)"
+    }
+
+    private func persistProfileCache(_ profile: MemberProfile, for userID: String?) {
+        guard let userID = userID?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !userID.isEmpty,
+              let encoded = try? JSONEncoder().encode(profile) else { return }
+        UserDefaults.standard.set(encoded, forKey: profileCacheKey(for: userID))
+    }
+
+    private func loadCachedProfile(for userID: String) -> MemberProfile? {
+        guard let data = UserDefaults.standard.data(forKey: profileCacheKey(for: userID)),
+              let decoded = try? JSONDecoder().decode(MemberProfile.self, from: data) else { return nil }
+        return decoded
+    }
+
+    private func loadLegacyProfile() -> MemberProfile? {
+        guard let data = UserDefaults.standard.data(forKey: legacyProfileKey),
+              let decoded = try? JSONDecoder().decode(MemberProfile.self, from: data) else { return nil }
+        return decoded
+    }
+
+    private func clearLegacyProfile() {
+        UserDefaults.standard.removeObject(forKey: legacyProfileKey)
+    }
+
+    private func firestoreProjectID() -> String? {
+        guard let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+              let plist = NSDictionary(contentsOfFile: path) as? [String: Any],
+              let projectID = plist["PROJECT_ID"] as? String else {
+            return nil
+        }
+        let trimmed = projectID.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func firestoreDocumentURL(for userID: String) -> URL? {
+        guard let projectID = firestoreProjectID() else { return nil }
+        guard let escapedUserID = userID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { return nil }
+        return URL(string: "https://firestore.googleapis.com/v1/projects/\(projectID)/databases/(default)/documents/\(firestoreCollection)/\(escapedUserID)")
+    }
+
+    private func extractFirestoreErrorMessage(from data: Data) -> String {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let errorBody = json["error"] as? [String: Any] else {
+            return "Firestore request failed."
+        }
+
+        if let message = errorBody["message"] as? String,
+           !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return message
+        }
+
+        return "Firestore request failed."
+    }
+
+    private func firestoreFields(from profile: MemberProfile) -> [String: Any] {
+        [
+            "firstName": ["stringValue": profile.firstName.trimmingCharacters(in: .whitespacesAndNewlines)],
+            "lastName": ["stringValue": profile.lastName.trimmingCharacters(in: .whitespacesAndNewlines)],
+            "chapter": ["stringValue": profile.chapter.trimmingCharacters(in: .whitespacesAndNewlines)],
+            "state": ["stringValue": profile.state.trimmingCharacters(in: .whitespacesAndNewlines)],
+            "role": ["stringValue": profile.role.trimmingCharacters(in: .whitespacesAndNewlines)],
+            "gradYear": ["stringValue": profile.gradYear.trimmingCharacters(in: .whitespacesAndNewlines)],
+            "interests": ["stringValue": profile.interests.trimmingCharacters(in: .whitespacesAndNewlines)]
+        ]
+    }
+
+    private func makeProfile(from firestoreDocument: FirestoreProfileDocument) -> MemberProfile? {
+        guard let fields = firestoreDocument.fields else { return nil }
+        let fallback = Self.defaultProfile
+
+        func value(_ key: String, fallback defaultValue: String) -> String {
+            fields[key]?.stringValue ?? defaultValue
+        }
+
+        return MemberProfile(
+            firstName: value("firstName", fallback: fallback.firstName),
+            lastName: value("lastName", fallback: fallback.lastName),
+            chapter: value("chapter", fallback: fallback.chapter),
+            state: value("state", fallback: fallback.state),
+            role: value("role", fallback: fallback.role),
+            gradYear: value("gradYear", fallback: fallback.gradYear),
+            interests: value("interests", fallback: fallback.interests)
+        )
+    }
+
+    private func fetchProfileFromFirestore(userID: String, idToken: String) async throws -> MemberProfile? {
+        guard let url = firestoreDocumentURL(for: userID) else {
+            throw NSError(domain: "MemberProfile", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing Firebase project configuration for profile sync."])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "MemberProfile", code: 2, userInfo: [NSLocalizedDescriptionKey: "No response from Firestore."])
+        }
+
+        switch httpResponse.statusCode {
+        case 200...299:
+            guard let decoded = try? JSONDecoder().decode(FirestoreProfileDocument.self, from: data) else {
+                throw NSError(domain: "MemberProfile", code: 3, userInfo: [NSLocalizedDescriptionKey: "Invalid Firestore profile response."])
+            }
+            return makeProfile(from: decoded)
+        case 404:
+            return nil
+        default:
+            let message = extractFirestoreErrorMessage(from: data)
+            throw NSError(domain: "MemberProfile", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+    }
+
+    private func saveProfileToFirestore(_ profile: MemberProfile, userID: String, idToken: String) async throws {
+        guard let url = firestoreDocumentURL(for: userID) else {
+            throw NSError(domain: "MemberProfile", code: 4, userInfo: [NSLocalizedDescriptionKey: "Missing Firebase project configuration for profile sync."])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["fields": firestoreFields(from: profile)])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "MemberProfile", code: 5, userInfo: [NSLocalizedDescriptionKey: "No response from Firestore."])
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = extractFirestoreErrorMessage(from: data)
+            throw NSError(domain: "MemberProfile", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: message])
+        }
     }
 
     private func loadReminders() {
@@ -437,4 +698,12 @@ final class MemberAppStore: ObservableObject {
             UserDefaults.standard.set(encoded, forKey: connectionsKey)
         }
     }
+}
+
+private struct FirestoreProfileDocument: Decodable {
+    let fields: [String: FirestoreProfileField]?
+}
+
+private struct FirestoreProfileField: Decodable {
+    let stringValue: String?
 }

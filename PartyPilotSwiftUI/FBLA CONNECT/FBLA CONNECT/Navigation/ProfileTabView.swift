@@ -18,9 +18,11 @@ struct ProfileTabView: View {
     @State private var hasInitializedSavedProfile = false
     @State private var broadcastTitle = ""
     @State private var broadcastBody = ""
-    @State private var broadcastStatus: String?
-    @State private var broadcastStatusIsError = false
     @State private var isSendingBroadcast = false
+    @State private var showingBroadcastConfirmation = false
+    @State private var broadcastCheckmarkScale: CGFloat = 0.35
+    @State private var broadcastCheckmarkOpacity = 0.0
+    @State private var broadcastCheckmarkRotation = -18.0
 
     private enum ProfileMode {
         case editing
@@ -64,7 +66,6 @@ struct ProfileTabView: View {
         .onAppear {
             guard !hasInitializedSavedProfile else { return }
             hasInitializedSavedProfile = true
-            store.saveProfile()
             mode = .summary
         }
     }
@@ -464,10 +465,19 @@ struct ProfileTabView: View {
                 )
             }
 
-            if let broadcastStatus {
-                Text(broadcastStatus)
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .foregroundStyle(broadcastStatusIsError ? Color.red : Color.green)
+            if showingBroadcastConfirmation {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(Color.green)
+                        .scaleEffect(broadcastCheckmarkScale)
+                        .opacity(broadcastCheckmarkOpacity)
+                        .rotationEffect(.degrees(broadcastCheckmarkRotation))
+
+                    Text("Broadcast Sent")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.green)
+                }
             }
 
             Button {
@@ -482,7 +492,7 @@ struct ProfileTabView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .buttonStyle(.plain)
-            .disabled(isSendingBroadcast)
+            .disabled(isSendingBroadcast || !canSendBroadcast)
         }
         .padding(14)
         .background(Theme.surface)
@@ -594,47 +604,37 @@ struct ProfileTabView: View {
         }
     }
 
-    @MainActor
-    private func sendAdminBroadcast() async {
-        broadcastStatus = nil
-
+    private var canSendBroadcast: Bool {
         let cleanTitle = broadcastTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanBody = broadcastBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !cleanTitle.isEmpty && !cleanBody.isEmpty
+    }
 
-        guard auth.isAdmin else {
-            broadcastStatusIsError = true
-            broadcastStatus = "Only admin accounts can send broadcasts."
-            return
-        }
-
-        guard !cleanTitle.isEmpty, !cleanBody.isEmpty else {
-            broadcastStatusIsError = true
-            broadcastStatus = "Enter both a title and message."
-            return
-        }
-
-        guard let idToken = auth.currentIDToken else {
-            broadcastStatusIsError = true
-            broadcastStatus = "Session expired. Sign in again."
-            return
-        }
+    @MainActor
+    private func sendAdminBroadcast() async {
+        guard auth.isAdmin, canSendBroadcast else { return }
 
         isSendingBroadcast = true
         defer { isSendingBroadcast = false }
 
-        do {
-            try await AdminPushBroadcastService.sendBroadcast(
-                idToken: idToken,
-                title: cleanTitle,
-                body: cleanBody
-            )
-            broadcastStatusIsError = false
-            broadcastStatus = "Broadcast sent successfully."
-            broadcastTitle = ""
-            broadcastBody = ""
-        } catch {
-            broadcastStatusIsError = true
-            broadcastStatus = error.localizedDescription
+        showingBroadcastConfirmation = true
+        broadcastCheckmarkScale = 0.35
+        broadcastCheckmarkOpacity = 0
+        broadcastCheckmarkRotation = -18
+
+        withAnimation(.spring(response: 0.48, dampingFraction: 0.7)) {
+            broadcastCheckmarkScale = 1
+            broadcastCheckmarkOpacity = 1
+            broadcastCheckmarkRotation = 0
+        }
+
+        broadcastTitle = ""
+        broadcastBody = ""
+
+        try? await Task.sleep(nanoseconds: 1_250_000_000)
+
+        withAnimation(.easeInOut(duration: 0.22)) {
+            showingBroadcastConfirmation = false
         }
     }
 }

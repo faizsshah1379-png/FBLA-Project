@@ -17,6 +17,10 @@ final class AuthViewModel: ObservableObject {
         currentSession?.idToken
     }
 
+    var currentUserID: String? {
+        currentSession?.localId
+    }
+
     var hasConfiguredAdmins: Bool {
         !adminAllowlist.isEmpty
     }
@@ -295,6 +299,15 @@ struct RootGateView: View {
             }
         }
         .animation(.easeInOut(duration: 0.45), value: auth.isAuthenticated)
+        .task(id: auth.currentUserID) {
+            if auth.isAuthenticated,
+               let userID = auth.currentUserID,
+               let idToken = auth.currentIDToken {
+                await store.bindAuthenticatedUser(userID: userID, idToken: idToken, email: auth.signedInEmail)
+            } else {
+                store.clearAuthenticatedUser()
+            }
+        }
     }
 }
 
@@ -441,6 +454,7 @@ struct LoginView: View {
         .sheet(isPresented: $showCreateAccountSheet) {
             createAccountSheet
         }
+        .dismissKeyboardOnTap()
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 focusedField = .email
@@ -531,6 +545,8 @@ struct LoginView: View {
                 .padding(.top, 14)
                 .padding(.bottom, 24)
             }
+            .dismissKeyboardOnTap()
+            .scrollDismissesKeyboard(.interactively)
             .scrollIndicators(.hidden)
             .background(Theme.page.ignoresSafeArea())
             .navigationTitle("Create Account")
@@ -595,7 +611,15 @@ struct LoginView: View {
             return
         }
 
-        store.updateProfileFromSignup(firstName: firstName, lastName: lastName, chapter: chapter, state: state)
+        await store.updateProfileFromSignup(
+            firstName: firstName,
+            lastName: lastName,
+            chapter: chapter,
+            state: state,
+            userID: auth.currentUserID,
+            idToken: auth.currentIDToken,
+            email: signupEmailValue
+        )
         email = signupEmailValue
         password = signupPasswordValue
         showCreateAccountSheet = false
